@@ -2,6 +2,8 @@
 #include <string>
 #include <vector>
 
+#include "Toasts.h"
+
 using namespace std;
 
 
@@ -65,7 +67,7 @@ void initialize()
 	Misc::createPrompt(PromptHorseBag, "INPUT_LOOK_BEHIND", "Take Saddlebag", 1);
 
 
-	Misc::createPrompt(CreditIn, "INPUT_INTERACT_OPTION2", "Pay off your debt", 1, -2019190071);
+	Misc::createPrompt(CreditIn, "INPUT_INTERACT_OPTION2", "Pay Off Entire Debt", 1, -2019190071);
 	Misc::createPrompt(CreditRate, "INPUT_SPRINT", "Pay part of your debt", 0, -2019190071);
 
 
@@ -126,6 +128,38 @@ struct ScriptedSpeechParams
 	alignas(8) int v8;
 };
 
+int sleep_timer = 0;
+
+
+bool isPlayerStartedSleepScenario()
+{
+	const char* sleepScenarios[] = {
+		"WORLD_PLAYER_SLEEP_BEDROLL",
+		"WORLD_PLAYER_SLEEP_BEDROLL_ARTHUR",
+		"WORLD_PLAYER_SLEEP_GROUND",
+		"PROP_PLAYER_SLEEP_BED",
+		"PROP_PLAYER_SLEEP_BED_ARTHUR",
+		"PROP_PLAYER_SLEEP_TENT_A_FRAME",
+		"PROP_PLAYER_SLEEP_TENT_A_FRAME_ARTHUR",
+		"PROP_PLAYER_SLEEP_TENT_MALE_A",
+		"PROP_PLAYER_SLEEP_TENT_MALE_A_ARTHUR",
+		"PROP_PLAYER_SLEEP_A_FRAME_TENT_PLAYER_CAMPS",
+		"PROP_PLAYER_SLEEP_A_FRAME_TENT_PLAYER_CAMPS_ARTHUR"
+	};
+
+	for (const char* sleepScenario : sleepScenarios)
+	{
+		if (PED::_IS_PED_USING_SCENARIO_HASH(PLAYER::PLAYER_PED_ID(), MISC::GET_HASH_KEY(sleepScenario)) && TASK::_GET_SCENARIO_POINT_PED_IS_USING(PLAYER::PLAYER_PED_ID(), 1) == -1 && !PLAYER::IS_PLAYER_CONTROL_ON(0))
+		{
+			sleep_timer = MISC::GET_GAME_TIMER() + 60000 * 10;
+			return true;
+			break;
+		}
+	}
+	return false;
+}
+
+
 
 void main()
 {		
@@ -141,6 +175,8 @@ void main()
 	int money_limit = GetPrivateProfileInt("BANKING", "MONEY_LIMIT", 500, ".\\Banking.ini");
 
 	int armadillo_bank = GetPrivateProfileInt("MISC", "ARMADILLO_BANK", 1, ".\\Banking.ini");
+
+	int scenario_on = GetPrivateProfileInt("MISC", "SCENARIO_ON", 1, ".\\Banking.ini");
 
 	int sell_timer = 0;
 
@@ -188,8 +224,24 @@ void main()
 
 	int cop_timer = MISC::GET_GAME_TIMER() + 4000 * 60;;
 
+	int rateTime = 0;
+
+
+	int controlTimer = 0;
+
+	int current_time = 0;
+
+
+	bool is_in_sequence = 0;
+
+	
+	bool is_sleeping = 0;
+
+
 	while (true)
 	{
+		Toasts::updateUI();
+
 		Ped player = PLAYER::PLAYER_PED_ID();
 		Vector3 playerPos = ENTITY::GET_ENTITY_COORDS(player, true, false);
 		
@@ -255,8 +307,8 @@ void main()
 
 		if (!MISC::GET_MISSION_FLAG()) {
 			if (cop_timer < MISC::GET_GAME_TIMER() && debtDays <= 0 && bankDebt > 0) {
-				LAW::_SET_BOUNTY_FOR_PLAYER(0, bankDebt * 100);
-				LAW::_0x956510F8C36B5C64();
+				//LAW::_SET_BOUNTY_FOR_PLAYER(0, bankDebt * 100);
+				//LAW::_0x956510F8C36B5C64();
 				cop_timer = MISC::GET_GAME_TIMER() + 40000 * 60;
 			}
 		}
@@ -376,8 +428,8 @@ void main()
 						PED::SET_PED_CONFIG_FLAG(targetPed, 130, 1);
 
 
-						HUD::_UIPROMPT_SET_ENABLED(PromptBanking, 1); // _UIPROMPT_SET_ENABLED
-						HUD::_UIPROMPT_SET_VISIBLE(PromptBanking, 1); // _UIPROMPT_SET_VISIBLE
+						HUD::_UIPROMPT_SET_ENABLED(PromptBanking, 1); 
+						HUD::_UIPROMPT_SET_VISIBLE(PromptBanking, 1); 
 						HUD::_UIPROMPT_SET_GROUP(PromptBanking, HUD::_UIPROMPT_GET_GROUP_ID_FOR_TARGET_ENTITY(ent), 0);
 
 
@@ -389,6 +441,8 @@ void main()
 		}
 
 		if (banking_on > 0) {
+			HUD::_UIPROMPT_SET_ENABLED(PromptBanking, 0);
+			HUD::_UIPROMPT_SET_VISIBLE(PromptBanking, 0); 
 			HUD::_UIPROMPT_SET_ACTIVE_GROUP_THIS_FRAME(-2019190071, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Bank Services"), 1, 0, 0, 0);
 		}
 
@@ -398,10 +452,17 @@ void main()
 			HUD::_UIPROMPT_SET_ENABLED(PromptCredit, 1);
 			HUD::_UIPROMPT_SET_VISIBLE(PromptCredit, 1);
 
-
-			HUD::_UIPROMPT_SET_ENABLED(PromptDeposit, 1);
 			HUD::_UIPROMPT_SET_VISIBLE(PromptDeposit, 1);
 
+			if (debtDays == 0 && bankDebt > 0) {
+				HUD::_UIPROMPT_SET_ENABLED(PromptDeposit, 0);
+				HUD::_UIPROMPT_SET_TEXT(PromptCredit, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "~COLOR_RED~Credits"));
+			}
+			else {
+				HUD::_UIPROMPT_SET_ENABLED(PromptDeposit, 1);
+				HUD::_UIPROMPT_SET_TEXT(PromptCredit, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Credits"));
+
+			}
 			HUD::_UIPROMPT_SET_ENABLED(PromptBack, 1);
 			HUD::_UIPROMPT_SET_VISIBLE(PromptBack, 1);
 
@@ -451,29 +512,26 @@ void main()
 				
 				if (bankDebt > 0) {
 
-					if (bankMoney >= bankDebt) {
+					if (bankMoney >= bankDebt * 100 || MONEY::_MONEY_GET_CASH_BALANCE() >= bankDebt * 100) {
 						HUD::_UIPROMPT_SET_ENABLED(CreditIn, 1);
 					}
 
 					switch (debtType) {
 					case 1:
-						HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Pay part of the debt ($50)"));
 						
-						
-						
-						if (debtDays != 7) {
-							if (bankMoney >= 50 * 100) {
+						if (debtDays == 0) {
+							if (bankMoney >= 50 * 100 || MONEY::_MONEY_GET_CASH_BALANCE() >= 50 * 100) {
+								HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Pay part of the debt ($50)"));
 								HUD::_UIPROMPT_SET_ENABLED(CreditRate, 1);
 							}
 						}
-
 						
 
 						break;
 					case 2:
-						HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Pay part of the debt ($200)"));
-						if (debtDays != 7) {
-							if (bankMoney >= 200 * 100) {
+						if (debtDays == 0) {
+							if (bankMoney >= 200 * 100 || MONEY::_MONEY_GET_CASH_BALANCE() >= 200 * 100) {
+								HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Pay part of the debt ($200)"));
 								HUD::_UIPROMPT_SET_ENABLED(CreditRate, 1);
 							}
 						}
@@ -481,9 +539,9 @@ void main()
 
 						break;
 					case 3:
-						HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Pay part of the debt ($500)"));
-						if (debtDays != 7) {
-							if (bankMoney >= 500 * 100) {
+						if (debtDays == 0) {
+							if (bankMoney >= 500 * 100 || MONEY::_MONEY_GET_CASH_BALANCE() >= 500 * 100) {
+								HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Pay part of the debt ($500)"));
 								HUD::_UIPROMPT_SET_ENABLED(CreditRate, 1);
 							}
 						}
@@ -492,8 +550,13 @@ void main()
 						break;
 					}
 
-
-					
+					stringstream installStream;
+					installStream << "Installment Due In ";
+					installStream << debtDays;
+					installStream << " Days";
+					if (debtDays != 0) {
+						HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", installStream.str().c_str()));
+					}
 				
 					HUD::_UIPROMPT_SET_VISIBLE(CreditIn, 1);
 
@@ -554,10 +617,17 @@ void main()
 
 
 		if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(PromptBanking)) {
-
-			TASK::TASK_GO_TO_COORD_ANY_MEANS(player, local.x, local.y, local.z, 0.3f, 0, 0, 0, 0);
-
 			banking_on = 10;
+			
+			if (scenario_on) {
+				TASK::TASK_GO_TO_COORD_ANY_MEANS(player, local.x, local.y, local.z, 0.3f, 0, 0, 0, 0);
+			}
+			else {
+				TASK::TASK_STAND_STILL(player, -1);
+
+					banking_on = 1;
+			}
+			
 
 		}
 
@@ -579,10 +649,10 @@ void main()
 				//TASK::OPEN_SEQUENCE_TASK(&seq);
 				//AI::TASK_TURN_PED_TO_FACE_COORD(0, posterCoords.x, posterCoords.y, posterCoords.z, 1000);
 
-
-				inBank = 1;
-				TASK::TASK_START_SCENARIO_AT_POSITION(player, MISC::GET_HASH_KEY("WORLD_HUMAN_VAL_BANKTELLER"), local.x, local.y, local.z, local_heading, -1, true, false, 0, 0, false);
-
+				if (scenario_on) {
+					inBank = 1;
+					TASK::TASK_START_SCENARIO_AT_POSITION(player, MISC::GET_HASH_KEY("WORLD_HUMAN_VAL_BANKTELLER"), local.x, local.y, local.z, local_heading, -1, true, false, 0, 0, false);
+				}
 
 
 
@@ -590,7 +660,9 @@ void main()
 				//TASK::CLEAR_PED_TASKS(player, 1, 1);
 				//TASK::TASK_PERFORM_SEQUENCE(player, seq);
 
-				banking_on = 1;
+
+					banking_on = 1;
+				
 			}
 
 
@@ -598,15 +670,16 @@ void main()
 
 
 		if (HUD::_UIPROMPT_IS_JUST_RELEASED(PromptBack)) {
+			
 
-			if (banking_on == 1) {
-				TASK::CLEAR_PED_TASKS(player, 1, 1);
-				banking_on = 0;
-			}
+				if (banking_on == 1) {
+					TASK::CLEAR_PED_TASKS(player, 1, 1);
+					banking_on = 0;
+				}
 
-			if (banking_on > 1) {
-				banking_on = 1;
-			}
+				if (banking_on > 1) {
+					banking_on = 1;
+				}
 
 
 		}
@@ -697,6 +770,8 @@ void main()
 
 				bankMoney += 30000;
 
+				debtDays = 7;
+
 			}
 
 			if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(Credit1000)) {
@@ -711,6 +786,8 @@ void main()
 				debtType = 2;
 
 				bankMoney += 100000;
+
+				debtDays = 7;
 
 			}
 
@@ -727,6 +804,8 @@ void main()
 
 				bankMoney += 500000;
 
+				debtDays = 7;
+
 			}
 
 
@@ -737,7 +816,12 @@ void main()
 
 			if (CLOCK::GET_CLOCK_HOURS() == 0) {
 				if (day_passed == 0) {
-					debtDays--;
+					if (debtDays != 0) {
+						debtDays--;
+					}
+					//Toasts::showAdvancedNotification("Debt", "You are now the owner of the ~COLOR_GOLD~Saint Denis Hotel Room", "toast_log_blips", "blip_robbery_home", 200);
+
+
 
 					day_passed = 1;
 				}
@@ -749,13 +833,58 @@ void main()
 			}
 
 
+			
+
+			if (sleep_timer < MISC::GET_GAME_TIMER()) {
+				if (isPlayerStartedSleepScenario() && !is_in_sequence) {
+					if (!is_sleeping) {
+						if (debtDays != 0) {
+							debtDays--;
+						}
+						is_sleeping = 1;
+
+					}
+				}
+				else {
+					is_sleeping = 0;
+				}
+			}
+
+			/*
+			if (!PLAYER::IS_PLAYER_CONTROL_ON(0)) {
+				if (CLOCK::GET_CLOCK_HOURS() > current_time) {
+					if (debtDays != 0) {
+						debtDays--;
+					}
+				}
+			}
+			else {
+				if (controlTimer < MISC::GET_GAME_TIMER()) {
+
+					current_time = CLOCK::GET_CLOCK_HOURS();
+
+					controlTimer = MISC::GET_GAME_TIMER() + 1000;
+				}
+			}
+			*/
+
+
 			if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(CreditIn)) {
 
 				AUDIO::_0x0F2A2175734926D8("PURCHASE", "Ledger_Sounds");
 
 				AUDIO::PLAY_SOUND_FRONTEND("PURCHASE", "Ledger_Sounds", 1, 0);
 
-				bankMoney -= (bankDebt * 100);
+				if (bankMoney >= bankDebt * 100) {
+					bankMoney -= (bankDebt * 100);
+				}
+				else if (MONEY::_MONEY_GET_CASH_BALANCE() >= bankDebt * 100) {
+					MONEY::_MONEY_DECREMENT_CASH_BALANCE(bankDebt * 100);
+				}
+					
+					
+					
+				
 
 				bankDebt = 0;
 				
@@ -763,34 +892,58 @@ void main()
 
 			if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(CreditRate)) {
 				
-				AUDIO::_0x0F2A2175734926D8("PURCHASE", "Ledger_Sounds");
 
-				AUDIO::PLAY_SOUND_FRONTEND("PURCHASE", "Ledger_Sounds", 1, 0);
+				if (MISC::GET_GAME_TIMER() > rateTime) {
+					AUDIO::_0x0F2A2175734926D8("PURCHASE", "Ledger_Sounds");
 
-				switch (debtType) {
-				case 1:
-					bankMoney -= 25 * 100;
-					bankDebt -= 25;
-					break;
-				case 2:
-					bankMoney -= 100 * 100;
-					bankDebt -= 100;
-					break;
-				case 3:
-					bankMoney -= 250 * 100;
-					bankDebt -= 250;
-					break;
+					AUDIO::PLAY_SOUND_FRONTEND("PURCHASE", "Ledger_Sounds", 1, 0);
+
+					switch (debtType) {
+					case 1:
+						if (bankMoney >= 50 * 100) {
+							bankMoney -= 50 * 100;
+						}
+						else if (MONEY::_MONEY_GET_CASH_BALANCE() >= 50 * 100) {
+							MONEY::_MONEY_DECREMENT_CASH_BALANCE(50 * 100);
+						}
+
+						bankDebt -= 50;
+						break;
+					case 2:
+						if (bankMoney >= 200 * 100) {
+							bankMoney -= 200 * 100;
+						}
+						else if (MONEY::_MONEY_GET_CASH_BALANCE() >= 200 * 100) {
+							MONEY::_MONEY_DECREMENT_CASH_BALANCE(200 * 100);
+						}
+
+
+
+						bankDebt -= 200;
+						break;
+					case 3:
+						if (bankMoney >= 500 * 100) {
+							bankMoney -= 500 * 100;
+						}
+						else if (MONEY::_MONEY_GET_CASH_BALANCE() >= 500 * 100) {
+							MONEY::_MONEY_DECREMENT_CASH_BALANCE(500 * 100);
+						}
+
+
+						bankDebt -= 500;
+						break;
+					}
+
+					if (bankDebt > 0) {
+						debtDays = 7;
+					}
+					rateTime = MISC::GET_GAME_TIMER() + 2000;
 				}
-
-				if (bankDebt > 0) {
-					debtDays = 7;
-				}
-				
 			}
 
 		}
 
-
+		/*
 		if (debtDays == 0 && bankDebt > 0) {
 
 			switch (debtType) {
@@ -818,7 +971,7 @@ void main()
 				break;
 			}
 		}
-		
+		*/
 
 		if (bankDebt < 0) {
 			bankDebt = 0;

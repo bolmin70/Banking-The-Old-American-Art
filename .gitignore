@@ -30,3 +30,17 @@
 *.exe
 *.out
 *.app
+samples/Banking/.vs/Banking/v16/.suo
+*.db
+*.db-shm
+*.db-wal
+*.opendb
+*.ipch
+*.user
+*.recipe
+*.iobj
+*.ipdb
+*.log
+*.lastbuildstate
+*.tlog
+*.pdb
