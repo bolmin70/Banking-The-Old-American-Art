@@ -19,9 +19,7 @@ Prompt PromptAll;
 
 Prompt PromptBack;
 
-
 Prompt PromptBanking;
-Prompt PromptInvest;
 
 Prompt PromptCredit;
 Prompt PromptDeposit;
@@ -42,10 +40,76 @@ Prompt Prompt_Donate_Up;
 Prompt Prompt_Donate_Down;
 Prompt Prompt_Donate;
 
+bool lose_money;
+float money_divide;
 
+int money_bag;
+int money_limit;
+
+int armadillo_bank;
+
+int scenario_on;
+
+bool inBank = 0;
+
+int hold_clock = 0;
+
+bool day_passed = 0;
+
+
+int rateTime = 0;
+
+
+int controlTimer = 0;
+
+int current_time = 0;
+
+
+bool is_in_sequence = 0;
+
+
+bool is_sleeping = 0;
+
+int sell_timer = 0;
+
+int banking_on = 0;
+
+int is_player_dead = 0;
+
+
+bool debt_on = 0;
+
+bool night_on = 0;
+
+
+int save_timer = 0;
+
+int night_timer = 0;
+
+int current_bank = 0; //0 - nothing; 1 - valentine; 2 - blackwater; 3 - rhodes; 4 - saint denis
+
+Vector3 local;
+
+int local_heading;
+
+bool bagOn = 0;
+
+const int blipNumber = 5;
 
 void initialize()
 {
+	//INI file
+	lose_money = GetPrivateProfileInt("BANKING", "LOSE_MONEY_ON_DEATH", 1, ".\\Banking.ini");
+	money_divide = GetPrivateProfileInt("BANKING", "PERCENT_OF_MONEY_LOST_ON_DEATH", 1, ".\\Banking.ini");
+
+	money_bag = GetPrivateProfileInt("BANKING", "MONEY_BAG_MECHANIC", 1, ".\\Banking.ini");
+	money_limit = GetPrivateProfileInt("BANKING", "MONEY_LIMIT", 500, ".\\Banking.ini");
+
+	armadillo_bank = GetPrivateProfileInt("MISC", "ARMADILLO_BANK", 1, ".\\Banking.ini");
+
+	scenario_on = GetPrivateProfileInt("MISC", "SCENARIO_ON", 1, ".\\Banking.ini");
+
+	//initialize all of the prompts
 	Misc::createPrompt(PromptBanking, "INPUT_SHOP_BUY", "Bank Services", 1, -2019190071);
 	Misc::createPrompt(PromptCredit, "INPUT_JUMP", "Credits", 2, -2019190071);
 
@@ -84,8 +148,6 @@ void initialize()
 
 
 }
-
-
 
 
 int bankMoney;
@@ -131,7 +193,7 @@ struct ScriptedSpeechParams
 int sleep_timer = 0;
 
 
-bool isPlayerStartedSleepScenario()
+bool isPlayerStartedSleepScenario()  //used for detecting time passage during sleep
 {
 	const char* sleepScenarios[] = {
 		"WORLD_PLAYER_SLEEP_BEDROLL",
@@ -168,76 +230,21 @@ void main()
 
 	initialize();
 
-	bool lose_money = GetPrivateProfileInt("BANKING", "LOSE_MONEY_ON_DEATH", 1, ".\\Banking.ini");
-	float money_divide = GetPrivateProfileInt("BANKING", "PERCENT_OF_MONEY_LOST_ON_DEATH", 1, ".\\Banking.ini");
-
-	int money_bag = GetPrivateProfileInt("BANKING", "MONEY_BAG_MECHANIC", 1, ".\\Banking.ini");
-	int money_limit = GetPrivateProfileInt("BANKING", "MONEY_LIMIT", 500, ".\\Banking.ini");
-
-	int armadillo_bank = GetPrivateProfileInt("MISC", "ARMADILLO_BANK", 1, ".\\Banking.ini");
-
-	int scenario_on = GetPrivateProfileInt("MISC", "SCENARIO_ON", 1, ".\\Banking.ini");
-
-	int sell_timer = 0;
-
-	int banking_on = 0;
-
-	int is_player_dead = 0;
-
-
-	bool debt_on = 0;
-
-	bool night_on = 0;
-
-
-	int save_timer = 0;
-
-	int night_timer = 0;
-
-	int current_bank = 0; //0 - nothing; 1 - valentine; 2 - blackwater; 3 - rhodes; 4 - saint denis
-
-	Vector3 local;
-
-	int local_heading;
-
+	
 	Load();
 
-	bool bagOn = 0;
-
-	const int blipNumber = 5;
 
 	Blip blips[blipNumber];
 
 	Vector3 banks[blipNumber] = { Misc::toVector3(-307.649323, 776.651428, 118.762), Misc::toVector3(-812.822, -1277.791, 43.638), Misc::toVector3(1293.144, -1302.514, 77.041), Misc::toVector3(2643.956, -1292.622, 52.250), Misc::toVector3(-3665.463, -2625.200, -13.637) };
 
 
-
+	//spawns the armadillo bank teller with a scenario
 	Vector3 armadillo3 = Misc::toVector3(-3665.966, -2628.694, -13.588);
 	Ped armadilloBanker = Misc::createPed("S_M_M_BankClerk_01", armadillo3, 8);
 	TASK::_TASK_START_SCENARIO_IN_PLACE(armadilloBanker, MISC::GET_HASH_KEY("WORLD_HUMAN_VAL_BANKTELLER"), -1, true, false, 0, 0);
 
-	bool inBank = 0;
-
-	int hold_clock = 0;
-
-	bool day_passed = 0;
-
-	int cop_timer = MISC::GET_GAME_TIMER() + 4000 * 60;;
-
-	int rateTime = 0;
-
-
-	int controlTimer = 0;
-
-	int current_time = 0;
-
-
-	bool is_in_sequence = 0;
-
 	
-	bool is_sleeping = 0;
-
-
 	while (true)
 	{
 		Toasts::updateUI();
@@ -249,11 +256,9 @@ void main()
 		Ped playerHorse = PLAYER::_GET_SADDLE_HORSE_FOR_PLAYER(0);
 		Vector3 horsePos = ENTITY::GET_ENTITY_COORDS(playerHorse, true, false);
 
-
+		//hides and disables all prompts
 		HUD::_UIPROMPT_SET_VISIBLE(PromptWait, 0);
 		HUD::_UIPROMPT_SET_ENABLED(PromptWait, 0);
-
-
 
 		HUD::_UIPROMPT_SET_VISIBLE(Prompt50, 0);
 		HUD::_UIPROMPT_SET_ENABLED(Prompt50, 0);
@@ -275,9 +280,6 @@ void main()
 
 		HUD::_UIPROMPT_SET_ENABLED(PromptBanking, 0);
 		HUD::_UIPROMPT_SET_VISIBLE(PromptBanking, 0);
-
-		HUD::_UIPROMPT_SET_ENABLED(PromptInvest, 0);
-		HUD::_UIPROMPT_SET_VISIBLE(PromptInvest, 0);
 
 		HUD::_UIPROMPT_SET_ENABLED(PromptCredit, 0);
 		HUD::_UIPROMPT_SET_VISIBLE(PromptCredit, 0);
@@ -304,46 +306,34 @@ void main()
 		HUD::_UIPROMPT_SET_ENABLED(CreditRate, 0);
 		HUD::_UIPROMPT_SET_VISIBLE(CreditRate, 0);
 
-
-		if (!MISC::GET_MISSION_FLAG()) {
-			if (cop_timer < MISC::GET_GAME_TIMER() && debtDays <= 0 && bankDebt > 0) {
-				//LAW::_SET_BOUNTY_FOR_PLAYER(0, bankDebt * 100);
-				//LAW::_0x956510F8C36B5C64();
-				cop_timer = MISC::GET_GAME_TIMER() + 40000 * 60;
-			}
-		}
-		save_timer++;
-		if (save_timer > 600) {
+		
+		if (save_timer < MISC::GET_GAME_TIMER()) { //save once a minute
 			Save();
 
-			save_timer = 0;
+			save_timer = MISC::GET_GAME_TIMER() + 60000;
 		}
 
-		std::stringstream budget;
+		std::stringstream budget; //stringstream for dynamically displaying money currently stored at the bank
 		budget << "$";
 		budget << bankMoney / 100;
 
-		std::stringstream debtsum;
+		std::stringstream debtsum; //stringstream for dynamically displaying the currently owed debt 
 		debtsum << "$";
 		debtsum << bankDebt;
 
 
-		if (money_bag) {
+		//if the money bag mechanic is enabled, the player can get the saddle bag of off his horse with a prompt
+		if (money_bag) { 
 			Entity entHorse;
 			if (PLAYER::IS_PLAYER_TARGETTING_ANYTHING(0) && distanceBetween(playerPos, horsePos) <= 2.7f) {
 				if (PLAYER::GET_PLAYER_TARGET_ENTITY(0, &entHorse)) {
 					if (ENTITY::IS_ENTITY_A_PED(entHorse)) {
 						Ped targetPed = entHorse;
-
-
 						if (targetPed == playerHorse) {
 
 							HUD::_UIPROMPT_SET_ENABLED(PromptHorseBag, 1);
 							HUD::_UIPROMPT_SET_VISIBLE(PromptHorseBag, 1);
 							HUD::_UIPROMPT_SET_GROUP(PromptHorseBag, HUD::_UIPROMPT_GET_GROUP_ID_FOR_TARGET_ENTITY(entHorse), 0);
-
-
-
 						}
 
 					}
@@ -351,11 +341,10 @@ void main()
 			}
 		}
 
+		//logic and time intervals for the saddlebag prompt
 		hold_clock++;
 		if (hold_clock > 80) {
 			if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(PromptHorseBag)) {
-
-
 				if (!bagOn && !PED::_IS_PED_COMPONENT_EQUIPPED(player, 0x79D7DF96)) {
 					PED::_SET_PED_COMPONENT_ENABLED(player, 0x1C92E7D8, 1, 0, 0);
 					PED::_UPDATE_PED_VARIATION(player, 1, 1, 1, 1, 1);
@@ -368,10 +357,6 @@ void main()
 					PED::_SET_PED_COMPONENT_DISABLED(playerHorse, 0x80451C25, 1);
 					PED::_UPDATE_PED_VARIATION(playerHorse, 1, 1, 1, 1, 1);
 				}
-
-
-
-
 
 				if (bagOn && PED::_IS_PED_COMPONENT_EQUIPPED(player, 0x79D7DF96)) {
 					PED::_SET_PED_COMPONENT_DISABLED(player, 0x79D7DF96, 1);
@@ -390,7 +375,7 @@ void main()
 			}
 		}
 
-
+		//money limit with/out the saddlebag
 		if (!bagOn && money_bag) {
 			if (MONEY::_MONEY_GET_CASH_BALANCE() > (money_limit * 100)) {
 				MONEY::_MONEY_DECREMENT_CASH_BALANCE(99999999);
@@ -398,6 +383,7 @@ void main()
 			}
 		}
 
+		//Prompt text change depending on the current state of the saddlebag
 		if (PED::_IS_PED_COMPONENT_EQUIPPED(player, 0x79D7DF96)) {
 			bagOn = 1;
 
@@ -416,6 +402,8 @@ void main()
 
 		}
 
+
+		//Attach banking prompt to the bank teller
 		Entity ent;
 		if (PLAYER::IS_PLAYER_TARGETTING_ANYTHING(0)) {
 			if (PLAYER::GET_PLAYER_TARGET_ENTITY(0, &ent)) {
@@ -424,18 +412,13 @@ void main()
 
 
 					if (PED::IS_PED_MODEL(targetPed, MISC::GET_HASH_KEY("S_M_M_BankClerk_01"))) {
-
 						PED::SET_PED_CONFIG_FLAG(targetPed, 130, 1);
-
 
 						HUD::_UIPROMPT_SET_ENABLED(PromptBanking, 1); 
 						HUD::_UIPROMPT_SET_VISIBLE(PromptBanking, 1); 
 						HUD::_UIPROMPT_SET_GROUP(PromptBanking, HUD::_UIPROMPT_GET_GROUP_ID_FOR_TARGET_ENTITY(ent), 0);
 
-
-
 					}
-
 				}
 			}
 		}
@@ -470,21 +453,19 @@ void main()
 		}
 
 
-
-
+		//go into the deposit/withdrawal section
 		if (HUD::_UIPROMPT_IS_JUST_RELEASED(PromptDeposit)) {
 			banking_on = 2;
 		}
 
-
+		//go into the credit/debt section
 		if (HUD::_UIPROMPT_IS_JUST_RELEASED(PromptCredit)) {
 			banking_on = 3;
 		}
 
 
-
-		if (banking_on == 2) {
-
+		//deposit/withdrawal section
+		if (banking_on == 2) { 
 
 			HUD::_UIPROMPT_SET_ENABLED(PromptAll, 1);
 			HUD::_UIPROMPT_SET_VISIBLE(PromptAll, 1);
@@ -505,28 +486,20 @@ void main()
 			HUD::_UIPROMPT_SET_VISIBLE(PromptBack, 1);
 
 		}
-
+		//debt section
 		if (banking_on == 3) {
-
-			
-				
 				if (bankDebt > 0) {
-
 					if (bankMoney >= bankDebt * 100 || MONEY::_MONEY_GET_CASH_BALANCE() >= bankDebt * 100) {
 						HUD::_UIPROMPT_SET_ENABLED(CreditIn, 1);
 					}
-
 					switch (debtType) {
-					case 1:
-						
+					case 1:					
 						if (debtDays == 0) {
 							if (bankMoney >= 50 * 100 || MONEY::_MONEY_GET_CASH_BALANCE() >= 50 * 100) {
 								HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", "Pay part of the debt ($50)"));
 								HUD::_UIPROMPT_SET_ENABLED(CreditRate, 1);
 							}
 						}
-						
-
 						break;
 					case 2:
 						if (debtDays == 0) {
@@ -535,8 +508,6 @@ void main()
 								HUD::_UIPROMPT_SET_ENABLED(CreditRate, 1);
 							}
 						}
-
-
 						break;
 					case 3:
 						if (debtDays == 0) {
@@ -545,8 +516,6 @@ void main()
 								HUD::_UIPROMPT_SET_ENABLED(CreditRate, 1);
 							}
 						}
-
-
 						break;
 					}
 
@@ -554,16 +523,12 @@ void main()
 					installStream << "Installment Due In ";
 					installStream << debtDays;
 					installStream << " Days";
+
 					if (debtDays != 0) {
 						HUD::_UIPROMPT_SET_TEXT(CreditRate, (char*)MISC::_CREATE_VAR_STRING(10, "LITERAL_STRING", installStream.str().c_str()));
-					}
-				
-					HUD::_UIPROMPT_SET_VISIBLE(CreditIn, 1);
-
-					
+					}				
+					HUD::_UIPROMPT_SET_VISIBLE(CreditIn, 1);				
 					HUD::_UIPROMPT_SET_VISIBLE(CreditRate, 1);
-
-
 				}
 				else {
 					HUD::_UIPROMPT_SET_ENABLED(Credit300, 1);
@@ -585,9 +550,7 @@ void main()
 
 		}
 
-
-
-
+		//bank interaction scenariopoint positions
 		if (distanceBetween(playerPos, banks[0]) <= 4.3f) {
 			current_bank = 1;
 			local = Misc::toVector3(-308.599, 775.953, 118.702);
@@ -615,10 +578,9 @@ void main()
 		}
 
 
-
+		//begin interaction with the bankteller after the prompt is held down
 		if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(PromptBanking)) {
-			banking_on = 10;
-			
+			banking_on = 10;		
 			if (scenario_on) {
 				TASK::TASK_GO_TO_COORD_ANY_MEANS(player, local.x, local.y, local.z, 0.3f, 0, 0, 0, 0);
 			}
@@ -627,51 +589,23 @@ void main()
 
 					banking_on = 1;
 			}
-			
-
 		}
-
-
-
-
-		if (banking_on == 10) {
-
-
-
+		if (banking_on == 10) { //start scenario
 			if (distanceBetween(playerPos, local) <= 0.7) {
-				//TASK::TASK_PED_SLIDE_TO_COORD(player, playerPos.x, playerPos.y, playerPos.z, 198, 0);
-
-				//TASK::CLEAR_PED_TASKS(player, 1, 1);
-
-				//WAIT(0);
-
-				//Object seq;
-				//TASK::OPEN_SEQUENCE_TASK(&seq);
-				//AI::TASK_TURN_PED_TO_FACE_COORD(0, posterCoords.x, posterCoords.y, posterCoords.z, 1000);
-
 				if (scenario_on) {
 					inBank = 1;
 					TASK::TASK_START_SCENARIO_AT_POSITION(player, MISC::GET_HASH_KEY("WORLD_HUMAN_VAL_BANKTELLER"), local.x, local.y, local.z, local_heading, -1, true, false, 0, 0, false);
 				}
 
-
-
-				//TASK::CLOSE_SEQUENCE_TASK(seq);
-				//TASK::CLEAR_PED_TASKS(player, 1, 1);
-				//TASK::TASK_PERFORM_SEQUENCE(player, seq);
-
-
-					banking_on = 1;
+				banking_on = 1;
 				
 			}
 
 
 		}
 
-
+		//go to the previous section/close the menu
 		if (HUD::_UIPROMPT_IS_JUST_RELEASED(PromptBack)) {
-			
-
 				if (banking_on == 1) {
 					TASK::CLEAR_PED_TASKS(player, 1, 1);
 					banking_on = 0;
@@ -681,43 +615,29 @@ void main()
 					banking_on = 1;
 				}
 
-
-		}
-
-		if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(PromptInvest)) {
-
 		}
 
 
-		int money_current = MONEY::_MONEY_GET_CASH_BALANCE();
+		int money_current = MONEY::_MONEY_GET_CASH_BALANCE(); //returns current player balanace
 
+		//deposit all
 		if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(PromptIn))
 		{
-			;
-
 			bankMoney += money_current;
-
-
 
 			MONEY::_MONEY_DECREMENT_CASH_BALANCE(99999999999);
 
-
-
-
 		}
-
-		if (HUD::_UIPROMPT_IS_JUST_RELEASED(Prompt10)) { //_HUDPROMPT_IS_JUST_RELEASED
-
-
+		//withdraw 10
+		if (HUD::_UIPROMPT_IS_JUST_RELEASED(Prompt10)) { 
 			if (bankMoney >= 1000) {
 				MONEY::_MONEY_INCREMENT_CASH_BALANCE(1000, 1);
 				bankMoney -= 1000;
 			}
 
-
 		}
-
-		if (HUD::_UIPROMPT_IS_JUST_RELEASED(Prompt50)) { //_HUDPROMPT_IS_JUST_RELEASED
+		//withdraw 50
+		if (HUD::_UIPROMPT_IS_JUST_RELEASED(Prompt50)) { 
 
 			if (bankMoney >= 5000) {
 				MONEY::_MONEY_INCREMENT_CASH_BALANCE(5000, 1);
@@ -725,8 +645,8 @@ void main()
 			}
 
 		}
-
-		if (HUD::_UIPROMPT_IS_JUST_RELEASED(Prompt200)) { //_HUDPROMPT_IS_JUST_RELEASED
+		//withdraw 200
+		if (HUD::_UIPROMPT_IS_JUST_RELEASED(Prompt200)) { 
 
 
 			if (bankMoney >= 20000) {
@@ -735,8 +655,8 @@ void main()
 			}
 
 		}
-
-		if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(PromptAll)) { //_UIPROMPT_IS_JUST_RELEASED
+		//withdraw all
+		if (HUD::_UIPROMPT_HAS_HOLD_MODE_COMPLETED(PromptAll)) {
 
 			MONEY::_MONEY_INCREMENT_CASH_BALANCE(bankMoney, 1);
 			bankMoney = 0;
@@ -744,14 +664,7 @@ void main()
 		}
 
 
-		sell_timer++;
-		if (sell_house > 0 && sell_timer > 1000) {
-			sell_house = 0;
-			sell_timer = 0;
-		}
-
-
-
+		//Debt related prompts for taking and paying it off
 		if (bankDebt == 0) {
 
 
@@ -943,41 +856,12 @@ void main()
 
 		}
 
-		/*
-		if (debtDays == 0 && bankDebt > 0) {
-
-			switch (debtType) {
-			case 1:
-
-				if (bankMoney >= 50 * 100) {
-					bankMoney -= 50 * 100;
-					bankDebt -= 50;
-				}
-				
-				
-				break;
-			case 2:
-
-				if (bankMoney >= 200 * 100) {
-					bankMoney -= 200 * 100;
-					bankDebt -= 200;
-				}
-				break;
-			case 3:
-				if (bankMoney >= 500 * 100) {
-					bankMoney -= 500 * 100;
-					bankDebt -= 500;
-				}
-				break;
-			}
-		}
-		*/
-
+		//validation check for the bank debt to not go into negative values
 		if (bankDebt < 0) {
 			bankDebt = 0;
 		}
 
-
+		//extra detail, player will play a "thanks for the service" voiceline when leaving the bank building, similarly to how it works in regular stores
 		if (!INTERIOR::IS_INTERIOR_SCENE() && inBank)
 		{
 			inBank = 0;
@@ -986,9 +870,10 @@ void main()
 
 		}
 
-
+		//Adds the armadillo bank doors to the network, allowing them to be closed/openend through the script
 		OBJECT::_0xD99229FE93B46286(3101287960, 1, 1, 1, 1, 1, 1);
 
+		//day/night cycle for doors closing and the blip mode
 		if (distanceBetween(playerPos, banks[0]) <= 4.3f || distanceBetween(playerPos, banks[1]) <= 4.f || distanceBetween(playerPos, banks[2]) <= 6.f || distanceBetween(playerPos, banks[3]) <= 6.5f || distanceBetween(playerPos, banks[4]) <= 4.5f)
 		{
 
@@ -1092,22 +977,24 @@ void main()
 
 				night_timer++;
 				if (night_timer > 200) {
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2642457609, 1); //Valentine bank doors
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3886827663, 1);
+					//Pensive
+					
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2642457609, 1); //Valentine bank doors
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3886827663, 1);
 
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(1733501235, 1); //Saint Denis bank
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2089945615, 1);
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2158285782, 1);
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2817024187, 1);
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(1733501235, 1); //Saint Denis bank
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2089945615, 1);
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2158285782, 1);
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2817024187, 1);
 
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3317756151, 1); //Rhodes bank
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3088209306, 1);
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3317756151, 1); //Rhodes bank
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3088209306, 1);
 
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(531022111, 1); //Blackwater bank
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(531022111, 1); //Blackwater bank
 
 
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3101287960, 1); //armadillo
-
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3101287960, 1); //armadillo
+					
 
 				}
 
@@ -1128,23 +1015,44 @@ void main()
 			}
 			else {
 				night_timer = 0;
+				if (LAW::_GET_WANTED_INTENSITY_FOR_PLAYER(0) > 0.f) {
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2642457609, 1); //Valentine bank doors
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3886827663, 1);
 
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2642457609, 0); //Valentine bank doors
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3886827663, 0);
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(1733501235, 1); //Saint Denis bank
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2089945615, 1);
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2158285782, 1);
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2817024187, 1);
 
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(1733501235, 0); //Saint Denis bank
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2089945615, 0);
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2158285782, 0);
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2817024187, 0);
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3317756151, 1); //Rhodes bank
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3088209306, 1);
 
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3317756151, 0); //Rhodes bank
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3088209306, 0);
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(531022111, 1); //Blackwater bank
 
-				OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(531022111, 0); //Blackwater bank
-
-				if (armadillo_bank) {
-					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3101287960, 0); //armadillo
+					if (armadillo_bank) {
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3101287960, 1); //armadillo
+					}
 				}
+				else {
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2642457609, 0); //Valentine bank doors
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3886827663, 0);
+
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(1733501235, 0); //Saint Denis bank
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2089945615, 0);
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2158285782, 0);
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(2817024187, 0);
+
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3317756151, 0); //Rhodes bank
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3088209306, 0);
+
+					OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(531022111, 0); //Blackwater bank
+
+					if (armadillo_bank) {
+						OBJECT::DOOR_SYSTEM_SET_DOOR_STATE(3101287960, 0); //armadillo
+					}
+				}
+
+
 
 				if (night_on) {
 					if (armadillo_bank) {
@@ -1195,11 +1103,7 @@ void main()
 
 		}
 
-
-
-
-
-
+		//money removal mechanism on death
 		if (PLAYER::IS_PLAYER_DEAD(PLAYER::PLAYER_ID()) == true) {
 			if (is_player_dead == 0) {
 				is_player_dead = 1;
